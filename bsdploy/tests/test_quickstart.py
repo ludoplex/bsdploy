@@ -96,7 +96,7 @@ def iter_quickstart_calls(actions, confext, ployconf, tempdir):
                     bootstrap = line.endswith('bootstrap')
                     if bootstrap:
                         yield (action[0], wait_for_ssh, ('localhost', 44003), {})
-                        line = '%s -y' % line
+                        line = f'{line} -y'
                     yield (action[0], subprocess.check_call, (line,), dict(shell=True))
                     if bootstrap:
                         yield (action[0], wait_for_ssh, ('localhost', 44003), {})
@@ -111,10 +111,8 @@ def iter_quickstart_calls(actions, confext, ployconf, tempdir):
             content.extend(action[2])
             content.append('')
             yield (action[0], paths[name].fill, (content,), {})
-        elif action[0] == 'expect':
-            pass
-        else:
-            pytest.fail("Unknown action %s" % action[0])
+        elif action[0] != 'expect':
+            pytest.fail(f"Unknown action {action[0]}")
 
 
 def test_quickstart_calls(confext, qs_path, ployconf, tempdir):
@@ -130,22 +128,35 @@ def test_quickstart_calls(confext, qs_path, ployconf, tempdir):
         (subprocess.check_call, ('mkdir ploy-quickstart',)),
         (subprocess.check_call, ('cd ploy-quickstart',)),
         (subprocess.check_call, ('mkdir etc',)),
-        ('create', ('%s/etc/ploy.conf' % tempdir.directory).replace('.conf', confext)),
+        (
+            'create',
+            f'{tempdir.directory}/etc/ploy.conf'.replace('.conf', confext),
+        ),
         (subprocess.check_call, ('ploy start ploy-demo',)),
-        ('add', ('%s/etc/ploy.conf' % tempdir.directory).replace('.conf', confext)),
+        (
+            'add',
+            f'{tempdir.directory}/etc/ploy.conf'.replace('.conf', confext),
+        ),
         (wait_for_ssh, ('localhost', 44003)),
         (subprocess.check_call, ('ploy bootstrap -y',)),
         (wait_for_ssh, ('localhost', 44003)),
-        ('add', ('%s/etc/ploy.conf' % tempdir.directory).replace('.conf', confext)),
+        (
+            'add',
+            f'{tempdir.directory}/etc/ploy.conf'.replace('.conf', confext),
+        ),
         (subprocess.check_call, ('ploy configure jailhost',)),
-        ('add', ('%s/etc/ploy.conf' % tempdir.directory).replace('.conf', confext)),
+        (
+            'add',
+            f'{tempdir.directory}/etc/ploy.conf'.replace('.conf', confext),
+        ),
         (subprocess.check_call, ('ploy start demo_jail',)),
-        ('create', '%s/jailhost-demo_jail.yml' % tempdir.directory),
+        ('create', f'{tempdir.directory}/jailhost-demo_jail.yml'),
         (subprocess.check_call, ('ploy configure demo_jail',)),
         (subprocess.check_call, ('mkdir host_vars',)),
-        ('create', '%s/host_vars/jailhost.yml' % tempdir.directory),
+        ('create', f'{tempdir.directory}/host_vars/jailhost.yml'),
         (subprocess.check_call, ('ploy configure jailhost -t pf-conf',)),
-        (subprocess.check_call, ("ploy ssh jailhost 'ifconfig em0'",))]
+        (subprocess.check_call, ("ploy ssh jailhost 'ifconfig em0'",)),
+    ]
     assert ployconf.content().splitlines() == [
         '[vb-instance:ploy-demo]',
         'vm-nic2 = nat',
@@ -187,7 +198,7 @@ def virtualenv(monkeypatch, tempdir):
     subprocess.check_output(['virtualenv', '.'])
     monkeypatch.delenv('PYTHONHOME', raising=False)
     monkeypatch.setenv('VIRTUAL_ENV', tempdir.directory)
-    monkeypatch.setenv('PATH', '%s/bin:%s' % (tempdir.directory, os.environ['PATH']))
+    monkeypatch.setenv('PATH', f"{tempdir.directory}/bin:{os.environ['PATH']}")
     yield tempdir.directory
     os.chdir(origdir)
     subprocess.call(['VBoxManage', 'controlvm', 'ploy-demo', 'poweroff'])
@@ -210,8 +221,7 @@ def wait_for_ssh(host, port, timeout=90):
                 continue
         time.sleep(1)
         timeout -= 1
-    raise RuntimeError(
-        "SSH at %s:%s didn't become accessible" % (host, port))
+    raise RuntimeError(f"SSH at {host}:{port} didn't become accessible")
 
 
 @pytest.mark.skipif("not config.option.quickstart_bsdploy")
@@ -221,7 +231,13 @@ def test_quickstart_functional(request, qs_path, confext, ployconf, tempdir, vir
     if not os.path.isabs(request.config.option.quickstart_bsdploy):
         pytest.fail("The path given by --quickstart-bsdploy needs to be absolute.")
     if request.config.option.ansible_version:
-        subprocess.check_call(['pip', 'install', 'ansible==%s' % request.config.option.ansible_version])
+        subprocess.check_call(
+            [
+                'pip',
+                'install',
+                f'ansible=={request.config.option.ansible_version}',
+            ]
+        )
     else:
         subprocess.check_call(['pip', 'install', 'ansible'])
     subprocess.check_call(['pip', 'install', '-i' 'https://d.rzon.de:8141/fschulze/dev/', '--pre', request.config.option.quickstart_bsdploy])

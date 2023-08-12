@@ -137,8 +137,8 @@ class BootstrapUtils:
     def env_vars(self):
         env_vars = ''
         if env.instance.config.get('http_proxy'):
-            env_vars = 'setenv http_proxy %s && ' % env.instance.config.get('http_proxy')
-            env_vars += 'setenv https_proxy %s && ' % env.instance.config.get('http_proxy')
+            env_vars = f"setenv http_proxy {env.instance.config.get('http_proxy')} && "
+            env_vars += f"setenv https_proxy {env.instance.config.get('http_proxy')} && "
         return env_vars
 
     @property
@@ -154,29 +154,30 @@ class BootstrapUtils:
             missing.append((ssh_key, ssh_key_name, ssh_keygen_args))
         if missing:
             yes = env.instance.config.get('bootstrap-yes', False)
-            print("\n".join("Missing %s." % x[0] for x in missing))
-            if not yes and not yesno("Should the above missing ssh host keys be generated in '%s'?" % self.bootstrap_path):
+            print("\n".join(f"Missing {x[0]}." for x in missing))
+            if not yes and not yesno(
+                f"Should the above missing ssh host keys be generated in '{self.bootstrap_path}'?"
+            ):
                 sys.exit(1)
         if not exists(self.bootstrap_path):
             os.makedirs(self.bootstrap_path)
         for ssh_key, ssh_key_name, ssh_keygen_args in missing:
             with settings(quiet(), warn_only=True):
                 result = local(
-                    "ssh-keygen %s -f %s -N ''" % (ssh_keygen_args, ssh_key),
-                    capture=True)
+                    f"ssh-keygen {ssh_keygen_args} -f {ssh_key} -N ''",
+                    capture=True,
+                )
                 if result.failed:
-                    print("Generation of %s with '%s' failed." % (
-                        ssh_key_name, ssh_keygen_args))
+                    print(f"Generation of {ssh_key_name} with '{ssh_keygen_args}' failed.")
                     continue
             with settings(quiet()):
-                fingerprint = local(
-                    "ssh-keygen -lf %s" % ssh_key, capture=True).split()[1]
-            print("Generated %s with fingerprint %s." % (ssh_key_name, fingerprint))
+                fingerprint = local(f"ssh-keygen -lf {ssh_key}", capture=True).split()[1]
+            print(f"Generated {ssh_key_name} with fingerprint {fingerprint}.")
 
     def generate_remote_ssh_keys(self):
         for ssh_key, ssh_keygen_args in sorted(self.ssh_keys):
             if ssh_key not in self.bootstrap_files:
-                run("ssh-keygen %s -f /mnt/etc/ssh/%s -N ''" % (ssh_keygen_args, ssh_key))
+                run(f"ssh-keygen {ssh_keygen_args} -f /mnt/etc/ssh/{ssh_key} -N ''")
 
     @lazy
     def bootstrap_files(self):
@@ -204,7 +205,7 @@ class BootstrapUtils:
         bootstrap_file_yamls = [
             abspath(join(self.default_bootstrap_path, self.bootstrap_files_yaml)),
             abspath(join(self.bootstrap_path, self.bootstrap_files_yaml))]
-        bootstrap_files = dict()
+        bootstrap_files = {}
         if self.upload_authorized_keys:
             bootstrap_files['authorized_keys'] = BootstrapFile(self, 'authorized_keys', **{
                 'directory': '/mnt/root/.ssh',
@@ -228,12 +229,16 @@ class BootstrapUtils:
         for bf in bootstrap_files.values():
             if not exists(bf.local) and bf.raw_fallback:
                 if not bf.existing_fallback:
-                    print("Found no public key in %s, you have to create '%s' manually" % (expanduser('~/.ssh'), bf.local))
+                    print(
+                        f"Found no public key in {expanduser('~/.ssh')}, you have to create '{bf.local}' manually"
+                    )
                     sys.exit(1)
-                print("The '%s' file is missing." % bf.local)
+                print(f"The '{bf.local}' file is missing.")
                 for path in bf.existing_fallback:
                     yes = env.instance.config.get('bootstrap-yes', False)
-                    if yes or yesno("Should we generate it using the key in '%s'?" % path):
+                    if yes or yesno(
+                        f"Should we generate it using the key in '{path}'?"
+                    ):
                         if not exists(bf.expected_path):
                             os.makedirs(bf.expected_path)
                         with open(bf.local, 'wb') as out:
@@ -245,7 +250,7 @@ class BootstrapUtils:
                     sys.exit(1)
 
             if not bf.check():
-                print('Cannot find %s' % bf.local)
+                print(f'Cannot find {bf.local}')
                 sys.exit(1)
 
         packages_path = join(self.download_path, 'packages')
@@ -265,21 +270,29 @@ class BootstrapUtils:
             for ssh_key_name, ssh_key_options in list(self.ssh_keys):
                 ssh_key = join(self.bootstrap_path, ssh_key_name)
                 if exists(ssh_key):
-                    pub_key_name = '%s.pub' % ssh_key_name
-                    pub_key = '%s.pub' % ssh_key
+                    pub_key_name = f'{ssh_key_name}.pub'
+                    pub_key = f'{ssh_key}.pub'
                     if not exists(pub_key):
-                        print("Public key '%s' for '%s' missing." % (pub_key, ssh_key))
+                        print(f"Public key '{pub_key}' for '{ssh_key}' missing.")
                         sys.exit(1)
                     bootstrap_files[ssh_key_name] = BootstrapFile(
-                        self, ssh_key_name, **dict(
+                        self,
+                        ssh_key_name,
+                        **dict(
                             local=ssh_key,
-                            remote='/mnt/etc/ssh/%s' % ssh_key_name,
-                            mode=0o600))
+                            remote=f'/mnt/etc/ssh/{ssh_key_name}',
+                            mode=0o600,
+                        ),
+                    )
                     bootstrap_files[pub_key_name] = BootstrapFile(
-                        self, pub_key_name, **dict(
+                        self,
+                        pub_key_name,
+                        **dict(
                             local=pub_key,
-                            remote='/mnt/etc/ssh/%s' % pub_key_name,
-                            mode=0o644))
+                            remote=f'/mnt/etc/ssh/{pub_key_name}',
+                            mode=0o644,
+                        ),
+                    )
         if hasattr(env.instance, 'get_vault_lib'):
             vaultlib = env.instance.get_vault_lib()
             for bf in bootstrap_files.values():
@@ -309,9 +322,9 @@ class BootstrapUtils:
         for filename, bf in sorted(self.bootstrap_files.items()):
             if not bf.directory:
                 continue
-            cmd = 'mkdir -p "%s"' % bf.directory
+            cmd = f'mkdir -p "{bf.directory}"'
             if bf.directory_mode:
-                cmd = '%s && chmod %s "%s"' % (cmd, bf.directory_mode, bf.directory)
+                cmd = f'{cmd} && chmod {bf.directory_mode} "{bf.directory}"'
             run(cmd, shell=False)
 
     def upload_bootstrap_files(self, context):
@@ -321,7 +334,7 @@ class BootstrapUtils:
 
     def install_pkg(self, root, chroot=None, packages=[]):
         assert isinstance(chroot, bool)
-        chroot_prefix = 'chroot %s ' % root if chroot else ''
+        chroot_prefix = f'chroot {root} ' if chroot else ''
 
         pkg = self.bootstrap_files.get('pkg.txz')
         if pkg is not None:
@@ -332,13 +345,18 @@ class BootstrapUtils:
             run("tar -x -C {root}{chroot} --exclude '+*' -f {0.remote}".format(
                 pkg, root=root, chroot=' --chroot' if chroot else ''))
             # run pkg2ng for which the shared library path needs to be updated
-            run(chroot_prefix + '/etc/rc.d/ldconfig start')
-            run(chroot_prefix + 'pkg2ng')
+            run(f'{chroot_prefix}/etc/rc.d/ldconfig start')
+            run(f'{chroot_prefix}pkg2ng')
 
         run(self.env_vars + chroot_prefix + 'pkg update', shell=False)
 
         if packages:
-            run(self.env_vars + chroot_prefix + 'pkg install %s' % ' '.join(packages), shell=False)
+            run(
+                self.env_vars
+                + chroot_prefix
+                + f"pkg install {' '.join(packages)}",
+                shell=False,
+            )
 
     @lazy
     def mounts(self):
@@ -396,11 +414,11 @@ class BootstrapUtils:
         installation targets by subtracting CDROM- and USB devices
         from the list of total mounts.
         """
-        install_devices = self.install_devices
         if 'bootstrap-system-devices' in env.instance.config:
             devices = set(env.instance.config['bootstrap-system-devices'].split())
         else:
             devices = set(self.sysctl_devices)
+            install_devices = self.install_devices
             for sysctl_device in self.sysctl_devices:
                 for install_device in install_devices:
                     if install_device.startswith(sysctl_device):
@@ -421,8 +439,7 @@ class BootstrapUtils:
 
     @lazy
     def destroygeom(self):
-        destroygeom = env.instance.config.get('bootstrap-destroygeom')
-        if destroygeom:
+        if destroygeom := env.instance.config.get('bootstrap-destroygeom'):
             dest = '/root/bsdploy_destroygeom'
             put(abspath(join(self.ploy_conf_path, destroygeom)), dest, mode=0o755)
             return dest
@@ -431,8 +448,7 @@ class BootstrapUtils:
 
     @lazy
     def zfsinstall(self):
-        zfsinstall = env.instance.config.get('bootstrap-zfsinstall')
-        if zfsinstall:
+        if zfsinstall := env.instance.config.get('bootstrap-zfsinstall'):
             dest = '/root/bsdploy_zfsinstall'
             put(abspath(join(self.ploy_conf_path, zfsinstall)), dest, mode=0o755)
             return dest
@@ -443,7 +459,7 @@ class BootstrapUtils:
         import tarfile
         import lzma
         packageinfo = {}
-        print("Loading package information from '%s'." % packagesite)
+        print(f"Loading package information from '{packagesite}'.")
         if SafeLoader.__name__ != 'CSafeLoader':
             print("WARNING: The C extensions for PyYAML aren't installed.")
             print("This can take quite a long while ...")
@@ -469,15 +485,20 @@ class BootstrapUtils:
                 continue
             info = packageinfo[dep]
             deps.update(info['deps'])
-            path = '%s/latest/%s' % (info['arch'], info['path'])
+            path = f"{info['arch']}/latest/{info['path']}"
             filename = join('packages', path)
-            items.append((
-                filename,
-                BootstrapFile(
-                    self, filename,
-                    url='http://pkg.freebsd.org/%s' % path,
-                    local=join(self.download_path, 'packages', path),
-                    remote=join('/mnt/var/cache/pkg/', info['path']))))
+            items.append(
+                (
+                    filename,
+                    BootstrapFile(
+                        self,
+                        filename,
+                        url=f'http://pkg.freebsd.org/{path}',
+                        local=join(self.download_path, 'packages', path),
+                        remote=join('/mnt/var/cache/pkg/', info['path']),
+                    ),
+                )
+            )
             seen.add(dep)
         return items
 

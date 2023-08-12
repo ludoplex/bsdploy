@@ -47,7 +47,7 @@ class Sysrc(object):
         if self.state == 'present':
             if not self.value:
                 self.module.fail_json(msg="When setting an rc.conf variable, a value is required.")
-            setting = "%s=%s" % (self.name, self.value)
+            setting = f"{self.name}={self.value}"
             if self.change_needed(setting):
                 self.change(setting)
         elif self.state == 'absent':

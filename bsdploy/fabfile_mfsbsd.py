@@ -85,7 +85,7 @@ def _bootstrap():
 
     template_context = {"ploy_jail_host_pkg_repository": "pkg+http://pkg.freeBSD.org/${ABI}/quarterly"}
     # first the config, so we don't get something essential overwritten
-    template_context.update(env.instance.config)
+    template_context |= env.instance.config
     template_context.update(
         devices=bu.sysctl_devices,
         interfaces=bu.phys_interfaces,
@@ -100,7 +100,7 @@ def _bootstrap():
     for interface in [bu.first_interface, env.instance.config.get('ansible-dhcp_host_sshd_interface')]:
         if interface is None:
             continue
-        ifconfig = 'ifconfig_%s' % interface
+        ifconfig = f'ifconfig_{interface}'
         for line in rc_conf_lines:
             if line.strip().startswith(ifconfig):
                 break
@@ -138,13 +138,9 @@ def _bootstrap():
         return
 
     # install FreeBSD in ZFS root
-    devices_args = ' '.join('-d %s' % x for x in bu.devices)
-    swap_arg = ''
-    if swap_size:
-        swap_arg = '-s %s' % swap_size
-    system_pool_arg = ''
-    if system_pool_size:
-        system_pool_arg = '-z %s' % system_pool_size
+    devices_args = ' '.join(f'-d {x}' for x in bu.devices)
+    swap_arg = f'-s {swap_size}' if swap_size else ''
+    system_pool_arg = f'-z {system_pool_size}' if system_pool_size else ''
     run('{destroygeom} {devices_args} -p {system_pool_name} -p {data_pool_name}'.format(
         destroygeom=bu.destroygeom,
         devices_args=devices_args,
@@ -183,7 +179,7 @@ def _bootstrap():
     # ansible playbooks
     bu.install_pkg('/mnt', chroot=True, packages=bootstrap_packages)
     # set autoboot delay
-    run('echo autoboot_delay=%s >> /mnt/boot/loader.conf' % autoboot_delay)
+    run(f'echo autoboot_delay={autoboot_delay} >> /mnt/boot/loader.conf')
     bu.generate_remote_ssh_keys()
     # reboot
     if bootstrap_reboot:

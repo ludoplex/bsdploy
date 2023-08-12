@@ -45,7 +45,9 @@ def test_augment_ezjail_master(ctrl, ployconf, tempdir):
     assert config['fabfile'].endswith('fabfile_mfsbsd.py')
     assert config['fabric-shell'] == '/bin/sh -c'
     assert config['ssh-host-keys'].endswith('bootstrap-files/ssh_host_rsa_key.pub')
-    assert os.path.exists(config['fabfile']), "The fabfile '%s' doesn't exist." % config['fabfile']
+    assert os.path.exists(
+        config['fabfile']
+    ), f"The fabfile '{config['fabfile']}' doesn't exist."
     assert config['roles'] == 'jails_host'
 
 
@@ -121,13 +123,15 @@ def test_augment_ezjail_instance(ctrl, ployconf):
     assert config['flavour'] == 'bsdploy_base'
     assert config['master'] == 'jailhost'
     assert config['startup_script']['path'].endswith('startup-ansible-jail.sh')
-    assert os.path.exists(config['startup_script']['path']), "The startup_script at '%s' doesn't exist." % config['startup_script']['path']
+    assert os.path.exists(
+        config['startup_script']['path']
+    ), f"The startup_script at '{config['startup_script']['path']}' doesn't exist."
 
 
 def test_augment_non_ezjail_instance(ctrl, ployconf):
     ployconf.fill([
         '[plain-instance:foo]'])
-    assert dict(ctrl.instances['foo'].config) == {}
+    assert not dict(ctrl.instances['foo'].config)
 
 
 @pytest.mark.parametrize("config, expected", [
@@ -223,12 +227,15 @@ def test_virtualbox_defaultdisk(ctrl, config, expected, ployconf):
     ('jailhost', 'fabfile', 'fab1file.py', SystemExit)])
 def test_augment_overwrite(ctrl, instance, key, value, expected, ployconf, tempdir):
     from bsdploy import bsdploy_path
-    ployconf.fill([
-        '[ez-master:jailhost]',
-        '%s = %s' % (key, value),
-        '[instance:foo]',
-        'master = jailhost',
-        '%s = %s' % (key, value)])
+    ployconf.fill(
+        [
+            '[ez-master:jailhost]',
+            f'{key} = {value}',
+            '[instance:foo]',
+            'master = jailhost',
+            f'{key} = {value}',
+        ]
+    )
     tempdir['etc/fabfile.py'].fill('')
     try:
         config = dict(ctrl.instances[instance].config)
