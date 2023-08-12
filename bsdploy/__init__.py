@@ -56,9 +56,11 @@ class PloyBootstrapCmd(object):
     def __call__(self, argv, help):
         """Bootstrap a jailhost that's been booted into MFSBsd."""
         parser = argparse.ArgumentParser(
-            prog="%s bootstrap" % self.ctrl.progname,
-            description=help)
-        masters = dict((master.id, master) for master in self.ctrl.get_masters('ezjail_admin'))
+            prog=f"{self.ctrl.progname} bootstrap", description=help
+        )
+        masters = {
+            master.id: master for master in self.ctrl.get_masters('ezjail_admin')
+        }
         parser.add_argument(
             "master",
             nargs='?' if len(masters) == 1 else 1,
@@ -88,13 +90,12 @@ def get_bootstrap_path(instance):
     from ploy_ansible import get_playbooks_directory
     host_defined_path = instance.config.get('bootstrap-files')
     main_config = instance.master.main_config
-    ploy_conf_path = main_config.path
     if host_defined_path is None:
         playbooks_directory = get_playbooks_directory(main_config)
-        bootstrap_path = path.join(playbooks_directory, instance.uid, 'bootstrap-files')
+        return path.join(playbooks_directory, instance.uid, 'bootstrap-files')
     else:
-        bootstrap_path = path.join(ploy_conf_path, host_defined_path)
-    return bootstrap_path
+        ploy_conf_path = main_config.path
+        return path.join(ploy_conf_path, host_defined_path)
 
 
 def get_ssh_key_paths(instance):
@@ -160,11 +161,12 @@ def augment_instance(instance):
         # for hosts
         if 'fabfile' not in instance.config:
             bootstrap_type = instance.config.get('bootstrap', 'mfsbsd')
-            fabfile = path.join(bsdploy_path, 'fabfile_%s.py' % bootstrap_type)
+            fabfile = path.join(bsdploy_path, f'fabfile_{bootstrap_type}.py')
             instance.config['fabfile'] = fabfile
         if not path.exists(instance.config['fabfile']):
-            log.error("The fabfile '%s' for instance '%s' doesn't exist." % (
-                instance.config['fabfile'], instance.uid))
+            log.error(
+                f"The fabfile '{instance.config['fabfile']}' for instance '{instance.uid}' doesn't exist."
+            )
             sys.exit(1)
         if not has_playbook(instance):
             instance.config['roles'] = 'jails_host'

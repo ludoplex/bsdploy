@@ -21,7 +21,7 @@ def bootstrap(**kwargs):
     bu = BootstrapUtils()
     # (temporarily) set the user to `freebsd`
     original_host = env.host_string
-    env.host_string = 'freebsd@%s' % env.instance.uid
+    env.host_string = f'freebsd@{env.instance.uid}'
     # copy DO bsdclout-init results:
     if bu.os_release.startswith('10'):
         sudo("""cat /etc/rc.digitalocean.d/droplet.conf > /etc/rc.conf""")

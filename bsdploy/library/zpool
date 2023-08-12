@@ -33,20 +33,21 @@ class Zpool(object):
 
     def exists(self):
         (rc, out, err) = self.zpool('list', '-H', self.name)
-        if self.geli and 'FAULTED' in out:
-            return False
-        return rc == 0
+        return False if self.geli and 'FAULTED' in out else rc == 0
 
     def get_devices(self):
-        devices = self.devices
-        if not devices:
-            if not os.path.exists('/dev/gpt'):
-                return []
-            return [
-                'gpt/%s' % x
-                for x in os.listdir('/dev/gpt')
-                if x.startswith("%s_" % self.name) and not x.endswith('.eli')]
-        return devices.split()
+        if devices := self.devices:
+            return devices.split()
+        else:
+            return (
+                []
+                if not os.path.exists('/dev/gpt')
+                else [
+                    f'gpt/{x}'
+                    for x in os.listdir('/dev/gpt')
+                    if x.startswith(f"{self.name}_") and not x.endswith('.eli')
+                ]
+            )
 
     def get_raid_mode(self, devices):
         raid_mode = self.raid_mode
@@ -56,7 +57,9 @@ class Zpool(object):
             elif len(devices) == 2:
                 raid_mode = 'mirror'
             else:
-                self.module.fail_json(msg="Don't know how to handle %s number of devices (%s)." % (len(devices), ' '.join(devices)))
+                self.module.fail_json(
+                    msg=f"Don't know how to handle {len(devices)} number of devices ({' '.join(devices)})."
+                )
         return raid_mode
 
     def prepare_geli_passphrase(self):
@@ -104,20 +107,17 @@ class Zpool(object):
                     self.module.fail_json(msg="Failed to attach geli device '%s'.\n%s" % (data_device, err))
             (rc, out, err) = self.module.run_command([
                 'sysrc', 'geli_devices'])
-            if rc != 0:
-                geli_devices = []
-            else:
-                geli_devices = out[14:].split()
+            geli_devices = [] if rc != 0 else out[14:].split()
             geli_devices.extend(rc_devices)
-            (rc, out, err) = self.module.run_command([
-                'sysrc', 'geli_devices=%s' % ' '.join(sorted(set(geli_devices)))])
+            (rc, out, err) = self.module.run_command(
+                ['sysrc', f"geli_devices={' '.join(sorted(set(geli_devices)))}"]
+            )
             if rc != 0:
                 self.module.fail_json(msg="Failed to set geli_devices in rc.conf to '%s'.\n%s" % (' '.join(geli_devices), err))
             for rc_device in rc_devices:
-                key = 'geli_%s_flags' % rc_device.replace('/', '_')
-                value = '-j %s' % self.geli_passphrase_location
-                (rc, out, err) = self.module.run_command([
-                    'sysrc', '%s=%s' % (key, value)])
+                key = f"geli_{rc_device.replace('/', '_')}_flags"
+                value = f'-j {self.geli_passphrase_location}'
+                (rc, out, err) = self.module.run_command(['sysrc', f'{key}={value}'])
                 if rc != 0:
                     self.module.fail_json(msg="Failed to set %s in rc.conf to '%s'.\n%s" % (key, value, err))
         else:
@@ -146,7 +146,7 @@ class Zpool(object):
             self.module.fail_json(msg="Failed to import zpool '%s'.\n%s" % (self.name, err))
 
     def create(self):
-        result = dict()
+        result = {}
         if self.module.check_mode:
             self.changed = True
             return result
@@ -159,14 +159,14 @@ class Zpool(object):
             if rc != 0:
                 zpool_args = ['create']
                 if self.version:
-                    zpool_args.extend(['-o', 'version=%s' % self.version])
+                    zpool_args.extend(['-o', f'version={self.version}'])
                 zpool_args.extend(['-m', 'none', self.name])
                 if raid_mode:
                     zpool_args.append(raid_mode)
                 zpool_args.extend(data_devices)
                 (rc, out, err) = self.zpool(*zpool_args)
-                if rc != 0:
-                    self.module.fail_json(msg="Failed to create zpool with the following arguments:\n%s\n%s" % (' '.join(zpool_args), err))
+            if rc != 0:
+                self.module.fail_json(msg="Failed to create zpool with the following arguments:\n%s\n%s" % (' '.join(zpool_args), err))
             self.changed = True
         self.cleanup_data_devices(data_devices)
         return result
@@ -179,7 +179,7 @@ class Zpool(object):
 
         if self.state in ['present', 'running']:
             if not self.exists():
-                result.update(self.create())
+                result |= self.create()
         elif self.state == 'absent':
             if self.exists():
                 self.destroy()

@@ -9,7 +9,7 @@ def rsync_project(*args, **kwargs):
     ssh_info = env.instance.init_ssh_key()
     ssh_info.pop('host')
     ssh_args = env.instance.ssh_args_from_info(ssh_info)
-    kwargs['ssh_opts'] = '%s %s' % (kwargs.get('ssh_opts', ''), shjoin(ssh_args))
+    kwargs['ssh_opts'] = f"{kwargs.get('ssh_opts', '')} {shjoin(ssh_args)}"
     with env.instance.fabric():
         env.host_string = "{user}@{host}".format(
             user=env.instance.config.get('user', 'root'),
@@ -46,8 +46,7 @@ def rsync(*args, **kwargs):
     ssh_info.pop('host')
     ssh_info.pop('user')
     ssh_args = env.instance.ssh_args_from_info(ssh_info)
-    cmd_parts = ['rsync']
-    cmd_parts.extend(['-e', "ssh %s" % shjoin(ssh_args)])
+    cmd_parts = ['rsync', *['-e', f"ssh {shjoin(ssh_args)}"]]
     cmd_parts.extend(args)
     cmd = shjoin(cmd_parts)
     return local(cmd, **kwargs)
@@ -57,7 +56,7 @@ def rsync(*args, **kwargs):
 def service(service=None, action='status'):
     if service is None:
         exit("You must provide a service name")
-    sudo('service %s %s' % (service, action), warn_only=True)
+    sudo(f'service {service} {action}', warn_only=True)
 
 
 @task
@@ -73,7 +72,7 @@ def pkg_upgrade():
 def update_flavour_pkg():
     """upgrade the pkg tool of the base flavour (so that newly created jails have the latest version)"""
     base_cmd = 'pkg-static -r /usr/jails/flavours/bsdploy_base'
-    run('%s update' % base_cmd)
-    run('%s install -U pkg' % base_cmd)
-    run('%s update' % base_cmd)
+    run(f'{base_cmd} update')
+    run(f'{base_cmd} install -U pkg')
+    run(f'{base_cmd} update')
     print("Done.")

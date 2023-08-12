@@ -35,7 +35,7 @@ def test_devices(bu, default_mounts, run_mock):
         ('test -e /dev/cd0 && mount_cd9660 /dev/cd0 /cdrom || true', {}, '\n'),
         ('test -e /dev/da0a && mount -o ro /dev/da0a /media || true', {}, '\n')]
     assert bu.sysctl_devices == ['ada0', 'cd0']
-    assert bu.devices == set(['ada0'])
+    assert bu.devices == {'ada0'}
 
 
 def test_devices_cdrom_mounted(bu, default_mounts, run_mock):
@@ -46,7 +46,7 @@ def test_devices_cdrom_mounted(bu, default_mounts, run_mock):
             '/dev/cd0 on /rw/cdrom (cd9660, local, read-only)'])),
         ('test -e /dev/da0a && mount -o ro /dev/da0a /media || true', {}, '\n')]
     assert bu.sysctl_devices == ['ada0', 'cd0']
-    assert bu.devices == set(['ada0'])
+    assert bu.devices == {'ada0'}
 
 
 def test_devices_usb_mounted(bu, default_mounts, run_mock):
@@ -57,7 +57,7 @@ def test_devices_usb_mounted(bu, default_mounts, run_mock):
             '/dev/da0a on /rw/media (ufs, local, read-only)'])),
         ('test -e /dev/cd0 && mount_cd9660 /dev/cd0 /cdrom || true', {}, '\n')]
     assert bu.sysctl_devices == ['ada0', 'da0']
-    assert bu.devices == set(['ada0'])
+    assert bu.devices == {'ada0'}
 
 
 def test_devices_different_cdrom(bu, default_mounts, run_mock, env_mock):
@@ -68,7 +68,7 @@ def test_devices_different_cdrom(bu, default_mounts, run_mock, env_mock):
         ('test -e /dev/da0a && mount -o ro /dev/da0a /media || true', {}, '\n')]
     env_mock.instance.config = {'bootstrap-cd-device': 'cd1'}
     assert bu.sysctl_devices == ['ada0', 'cd1']
-    assert bu.devices == set(['ada0'])
+    assert bu.devices == {'ada0'}
 
 
 def test_devices_different_usb(bu, default_mounts, run_mock, env_mock):
@@ -79,7 +79,7 @@ def test_devices_different_usb(bu, default_mounts, run_mock, env_mock):
         ('test -e /dev/da1a && mount -o ro /dev/da1a /media || true', {}, '\n')]
     env_mock.instance.config = {'bootstrap-usb-device': 'da1a'}
     assert bu.sysctl_devices == ['ada0', 'cd0', 'da1']
-    assert bu.devices == set(['ada0'])
+    assert bu.devices == {'ada0'}
 
 
 def test_devices_from_config(bu, default_mounts, run_mock, env_mock):
@@ -90,7 +90,7 @@ def test_devices_from_config(bu, default_mounts, run_mock, env_mock):
         ('test -e /dev/cd0 && mount_cd9660 /dev/cd0 /cdrom || true', {}, '\n'),
         ('test -e /dev/da0a && mount -o ro /dev/da0a /media || true', {}, '\n')]
     assert bu.sysctl_devices == ['ada0', 'cd0']
-    assert bu.devices == set(['ada0'])
+    assert bu.devices == {'ada0'}
 
 
 def test_bsd_url(bu, run_mock, run_result):
@@ -200,12 +200,12 @@ class TestFileEncryption:
             "'secret.txt':",
             "    remote: /root/secret.txt"])
         for name, bf in bu.bootstrap_files.items():
-            if name == 'secret.txt':
-                assert bf.encrypted
-                assert bf.open({}).read() == b'test-secret'
-            elif name == 'secret.bin':
+            if name == 'secret.bin':
                 assert bf.encrypted
                 assert bf.open({}).read() == bindata
+            elif name == 'secret.txt':
+                assert bf.encrypted
+                assert bf.open({}).read() == b'test-secret'
             else:
                 assert not bf.encrypted
 

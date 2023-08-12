@@ -23,10 +23,11 @@ def ctrl(ployconf, tempdir):
 
 def get_all_roles():
     roles_path = os.path.join(bsdploy_path, 'roles')
-    roles = []
-    for item in os.listdir(roles_path):
-        if os.path.isdir(os.path.join(roles_path, item)):
-            roles.append(item)
+    roles = [
+        item
+        for item in os.listdir(roles_path)
+        if os.path.isdir(os.path.join(roles_path, item))
+    ]
     return sorted(roles)
 
 
@@ -34,24 +35,22 @@ def _iter_tasks(block):
     from ansible.playbook.block import Block
     for task in block:
         if isinstance(task, Block):
-            for task in _iter_tasks(task.block):
-                yield task
+            yield from _iter_tasks(task.block)
         else:
             yield task
 
 
 def iter_tasks(plays):
     from ploy_ansible import ANSIBLE1
-    if ANSIBLE1:
-        for play in plays:
+    for play in plays:
+        if ANSIBLE1:
             for task in play.tasks():
                 if task.meta:
                     if task.meta == 'flush_handlers':  # pragma: nocover - branch coverage only on failure
                         continue
                     raise ValueError  # pragma: nocover - only on failure
                 yield play, task
-    else:
-        for play in plays:
+        else:
             for task in _iter_tasks(play.compile()):
                 if task.action == 'meta':
                     meta_action = task.args.get('_raw_params')
@@ -65,22 +64,19 @@ def iter_tasks(plays):
 
 def get_plays(pb, monkeypatch):
     from ploy_ansible import ANSIBLE1
-    if ANSIBLE1:
-        plays = []
-        monkeypatch.setattr('ansible.playbook.PlayBook._run_play', plays.append)
-        pb.run()
-        return plays
-    else:
+    if not ANSIBLE1:
         return pb.get_plays()
+    plays = []
+    monkeypatch.setattr('ansible.playbook.PlayBook._run_play', plays.append)
+    pb.run()
+    return plays
 
 
 def test_roles(ctrl, monkeypatch):
     instance = ctrl.instances['jailhost']
     pb = instance.get_playbook()
     plays = get_plays(pb, monkeypatch)
-    tasks = []
-    for play, task in iter_tasks(plays):
-        tasks.append(task.name)
+    tasks = [task.name for play, task in iter_tasks(plays)]
     assert tasks == [
         'bind host sshd to primary ip',
         'Enable ntpd in rc.conf',
@@ -159,6 +155,6 @@ def test_all_role_templates_tested(ctrl, monkeypatch, request):
                 name=src, task_name=task.name)))
     test_names = [x for x in dir(test_templates) if x.startswith('test_')]
     for name, info in templates:
-        test_name = 'test_%s_%s' % (info['role_name'], name)
+        test_name = f"test_{info['role_name']}_{name}"
         if not any(x for x in test_names if x.startswith(test_name)):  # pragma: nocover - only on failure
             pytest.fail("No test '{0}' for template '{name}' of task '{task_name}' in role '{role_name}' at '{path}'.".format(test_name, **info))
